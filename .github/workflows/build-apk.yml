@@ -21,7 +21,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.11"
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -45,21 +45,41 @@ jobs:
             cmake \
             libffi-dev \
             libssl-dev \
-            automake
+            automake \
+            libltdl-dev
 
       - name: Install Buildozer
         run: |
           python -m pip install --upgrade pip
-          python -m pip install buildozer setuptools
+          python -m pip install buildozer
           python -m pip install "cython==0.29.34"
+
+      - name: Configure Android SDK license
+        run: |
+          echo "" >> buildozer.spec
+          echo "android.accept_sdk_license = True" >> buildozer.spec
 
       - name: Check Buildozer
         run: |
           buildozer --version
 
-      - name: Prepare Android SDK, NDK and python-for-android
+      - name: Clean old Android build files
+        run: |
+          rm -rf .buildozer
+          rm -rf bin
+
+      - name: Download Android SDK, Build Tools, NDK and p4a
         run: |
           buildozer android p4a -- --help
+
+      - name: Verify Android Build Tools
+        run: |
+          echo "Checking Android SDK..."
+          find "$HOME/.buildozer/android/platform/android-sdk/build-tools" \
+            -maxdepth 2 \
+            -type f \
+            -name aidl \
+            -print
 
       - name: Build Aizen APK
         run: |
