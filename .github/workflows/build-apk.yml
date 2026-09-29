@@ -15,29 +15,43 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout Aizen
+        uses: actions/checkout@v4
+
       - name: Setup Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.x"
+          python-version: "3.12"
 
       - name: Setup Java
-        uses: actions/setup-java@v6
+        uses: actions/setup-java@v4
         with:
           java-version: "17"
           distribution: "temurin"
 
-      - name: Checkout repository
-        uses: actions/checkout@v7
+      - name: Install Linux dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            git \
+            zip \
+            unzip \
+            autoconf \
+            libtool \
+            pkg-config \
+            zlib1g-dev \
+            libncurses5-dev \
+            libncursesw5-dev \
+            cmake \
+            libffi-dev \
+            libssl-dev \
+            automake
 
       - name: Install Buildozer
         run: |
           python -m pip install --upgrade pip
-          python -m pip install .
-
-      - name: Install Linux dependencies
-        run: |
-          sudo apt update
-          sudo apt -y install automake libltdl-dev
+          python -m pip install buildozer setuptools
+          python -m pip install "cython==0.29.34"
 
       - name: Check Buildozer
         run: |
@@ -45,13 +59,9 @@ jobs:
 
       - name: Prepare Android SDK, NDK and python-for-android
         run: |
-          sed -i.bak \
-            "s/# android.accept_sdk_license = False/android.accept_sdk_license = True/" \
-            buildozer.spec
-
           buildozer android p4a -- --help
 
-      - name: Build Android APK
+      - name: Build Aizen APK
         run: |
           buildozer -v android debug
 
