@@ -15,54 +15,41 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
-          python-version: "3.11"
+          python-version: "3.x"
 
       - name: Setup Java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           java-version: "17"
           distribution: "temurin"
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            git \
-            zip \
-            unzip \
-            openjdk-17-jdk \
-            python3-pip \
-            python3-virtualenv \
-            autoconf \
-            libtool \
-            pkg-config \
-            zlib1g-dev \
-            libncurses5-dev \
-            libncursesw5-dev \
-            cmake \
-            libffi-dev \
-            libssl-dev \
-            automake \
-            autopoint \
-            gettext
+      - name: Checkout repository
+        uses: actions/checkout@v7
 
       - name: Install Buildozer
         run: |
           python -m pip install --upgrade pip
-          python -m pip install --upgrade buildozer
+          python -m pip install .
 
-      - name: Check project files
+      - name: Install Linux dependencies
         run: |
-          echo "Project files:"
-          ls -la
-          echo "Buildozer version:"
+          sudo apt update
+          sudo apt -y install automake libltdl-dev
+
+      - name: Check Buildozer
+        run: |
           buildozer --version
+
+      - name: Prepare Android SDK, NDK and python-for-android
+        run: |
+          sed -i.bak \
+            "s/# android.accept_sdk_license = False/android.accept_sdk_license = True/" \
+            buildozer.spec
+
+          buildozer android p4a -- --help
 
       - name: Build Android APK
         run: |
