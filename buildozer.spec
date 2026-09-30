@@ -24,7 +24,7 @@ android.archs = arm64-v8a,armeabi-v7a
 
 android.accept_sdk_license = True
 
-android.permissions = INTERNET
+android.permissions = INTERNET,RECORD_AUDIO
 
 source.exclude_dirs = .git,.github,bin,build,.buildozer
 
