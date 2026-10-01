@@ -11,12 +11,22 @@ import urllib.request
 import urllib.error
 import os
 
+# Android imports
+try:
+    from android import activity
+    from android.permissions import request_permissions, Permission
+    from android.content import Intent
+    from android.speech import RecognizerIntent
+    ANDROID = True
+except ImportError:
+    ANDROID = False
+
 
 # ==============================
 # AIZEN CONFIG
 # ==============================
 
-OPENROUTER_API_KEY = os.environ.get("")
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 
 MODEL = "openai/gpt-4o-mini"
 
@@ -43,6 +53,22 @@ class AizenApp(App):
                 )
             }
         ]
+
+        # ==============================
+        # REQUEST MIC PERMISSION
+        # ==============================
+
+        if ANDROID:
+            try:
+                request_permissions([
+                    Permission.RECORD_AUDIO
+                ])
+            except Exception:
+                pass
+
+        # ==============================
+        # ROOT
+        # ==============================
 
         root = BoxLayout(
             orientation="vertical",
@@ -115,28 +141,153 @@ class AizenApp(App):
         root.add_widget(self.message)
 
         # ==============================
-        # SEND BUTTON
+        # BUTTON ROW
         # ==============================
+
+        button_row = BoxLayout(
+            orientation="horizontal",
+            spacing=8,
+            size_hint_y=None,
+            height=55
+        )
+
+        # MIC BUTTON
+
+        self.mic_button = Button(
+            text="🎤 Mic",
+            size_hint_x=0.35
+        )
+
+        self.mic_button.bind(
+            on_press=self.start_voice_input
+        )
+
+        button_row.add_widget(self.mic_button)
+
+        # SEND BUTTON
 
         self.send_button = Button(
             text="Send",
-            size_hint_y=None,
-            height=50
+            size_hint_x=0.65
         )
 
         self.send_button.bind(
             on_press=self.send_message
         )
 
-        root.add_widget(self.send_button)
+        button_row.add_widget(self.send_button)
+
+        root.add_widget(button_row)
+
+        # Android activity result callback
+
+        if ANDROID:
+            try:
+                activity.bind(
+                    on_activity_result=self.on_activity_result
+                )
+            except Exception:
+                pass
 
         return root
+
+    # ==============================
+    # VOICE INPUT
+    # ==============================
+
+    def start_voice_input(self, instance):
+
+        if not ANDROID:
+            self.chat.text += "\n\nAizen: Voice input Android APK me available hoga."
+            return
+
+        try:
+            self.mic_button.text = "🎤 Listening..."
+
+            intent = Intent(
+                RecognizerIntent.ACTION_RECOGNIZE_SPEECH
+            )
+
+            intent.putExtra(
+                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+            )
+
+            intent.putExtra(
+                RecognizerIntent.EXTRA_LANGUAGE,
+                "en-IN"
+            )
+
+            intent.putExtra(
+                RecognizerIntent.EXTRA_PROMPT,
+                "Speak to Aizen"
+            )
+
+            activity.startActivityForResult(
+                intent,
+                1001
+            )
+
+        except Exception as e:
+
+            self.mic_button.text = "🎤 Mic"
+
+            self.chat.text += (
+                "\n\nAizen: Mic start nahi ho paya.\n"
+                + str(e)
+            )
+
+            self.scroll_to_bottom()
+
+    # ==============================
+    # VOICE RESULT
+    # ==============================
+
+    def on_activity_result(
+        self,
+        request_code,
+        result_code,
+        intent
+    ):
+
+        if request_code != 1001:
+            return
+
+        self.mic_button.text = "🎤 Mic"
+
+        try:
+
+            if intent is None:
+                return
+
+            results = intent.getStringArrayListExtra(
+                RecognizerIntent.EXTRA_RESULTS
+            )
+
+            if results and len(results) > 0:
+
+                spoken_text = str(results[0])
+
+                self.message.text = spoken_text
+
+                # Automatically send voice message
+                self.send_message(None)
+
+        except Exception as e:
+
+            self.chat.text += (
+                "\n\nAizen: Voice result read nahi ho paya.\n"
+                + str(e)
+            )
+
+            self.scroll_to_bottom()
 
     # ==============================
     # SEND MESSAGE
     # ==============================
 
     def send_message(self, instance):
+
         message = self.message.text.strip()
 
         if not message:
@@ -144,7 +295,9 @@ class AizenApp(App):
 
         self.message.text = ""
 
-        self.chat.text += f"\n\nYou: {message}"
+        self.chat.text += (
+            f"\n\nYou: {message}"
+        )
 
         self.messages.append({
             "role": "user",
@@ -152,6 +305,8 @@ class AizenApp(App):
         })
 
         self.send_button.disabled = True
+        self.mic_button.disabled = True
+
         self.send_button.text = "Aizen is thinking..."
 
         Thread(
@@ -171,11 +326,13 @@ class AizenApp(App):
         try:
 
             if not OPENROUTER_API_KEY:
+
                 Clock.schedule_once(
                     lambda dt: self.show_error(
                         "OpenRouter API key is not configured."
                     )
                 )
+
                 return
 
             data = {
@@ -189,7 +346,9 @@ class AizenApp(App):
                 data=json.dumps(data).encode("utf-8"),
                 headers={
                     "Content-Type": "application/json",
-                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "Authorization": (
+                        f"Bearer {OPENROUTER_API_KEY}"
+                    ),
                     "HTTP-Referer": "https://github.com/",
                     "X-Title": "Aizen AI"
                 },
@@ -255,9 +414,13 @@ class AizenApp(App):
 
     def show_reply(self, reply):
 
-        self.chat.text += f"\n\nAizen: {reply}"
+        self.chat.text += (
+            f"\n\nAizen: {reply}"
+        )
 
         self.send_button.disabled = False
+        self.mic_button.disabled = False
+
         self.send_button.text = "Send"
 
         self.scroll_to_bottom()
@@ -269,11 +432,13 @@ class AizenApp(App):
     def show_error(self, error):
 
         self.chat.text += (
-            f"\n\nAizen: Sorry bhai, connection problem.\n"
+            "\n\nAizen: Sorry bhai, connection problem.\n"
             f"{error}"
         )
 
         self.send_button.disabled = False
+        self.mic_button.disabled = False
+
         self.send_button.text = "Send"
 
         self.scroll_to_bottom()
@@ -293,6 +458,10 @@ class AizenApp(App):
             0.1
         )
 
+
+# ==============================
+# RUN
+# ==============================
 
 if __name__ == "__main__":
     AizenApp().run()
