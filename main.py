@@ -9,13 +9,14 @@ from threading import Thread
 import json
 import urllib.request
 import urllib.error
+import os
 
 
 # ==============================
 # AIZEN CONFIG
 # ==============================
 
-OPENROUTER_API_KEY = ""
+OPENROUTER_API_KEY = os.environ.get("")
 
 MODEL = "openai/gpt-4o-mini"
 
@@ -31,7 +32,6 @@ class AizenApp(App):
     def build(self):
         self.title = "Aizen AI"
 
-        # Conversation memory for current app session
         self.messages = [
             {
                 "role": "system",
@@ -144,20 +144,16 @@ class AizenApp(App):
 
         self.message.text = ""
 
-        # Show user message
         self.chat.text += f"\n\nYou: {message}"
 
-        # Add to conversation memory
         self.messages.append({
             "role": "user",
             "content": message
         })
 
-        # Disable button while AI is thinking
         self.send_button.disabled = True
         self.send_button.text = "Aizen is thinking..."
 
-        # Run API in background
         Thread(
             target=self.ask_aizen,
             args=(message,),
@@ -173,6 +169,14 @@ class AizenApp(App):
     def ask_aizen(self, message):
 
         try:
+
+            if not OPENROUTER_API_KEY:
+                Clock.schedule_once(
+                    lambda dt: self.show_error(
+                        "OpenRouter API key is not configured."
+                    )
+                )
+                return
 
             data = {
                 "model": MODEL,
@@ -203,7 +207,6 @@ class AizenApp(App):
 
             reply = result["choices"][0]["message"]["content"]
 
-            # Save AI response to conversation
             self.messages.append({
                 "role": "assistant",
                 "content": reply
@@ -217,7 +220,7 @@ class AizenApp(App):
 
             try:
                 error_body = e.read().decode("utf-8")
-            except:
+            except Exception:
                 error_body = ""
 
             error_message = (
@@ -293,12 +296,3 @@ class AizenApp(App):
 
 if __name__ == "__main__":
     AizenApp().run()
-
-Abhi sirf 2 kaam kar:
-
-1. "main.py" ka pura purana code delete karke upar wala code paste kar.
-2. "PASTE_YOUR_OPENROUTER_API_KEY_HERE" ko apni existing OpenRouter API key se replace kar.
-
-Buildozer.spec ko bilkul mat badalna. Uska working configuration same rahega.
-
-Is version mein Aizen actual OpenRouter se reply karega aur current conversation ko yaad rakhega. Uske baad hum next step mein voice input/output + "bankai" activation + "hell" deactivation add karenge.
