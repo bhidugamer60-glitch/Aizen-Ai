@@ -9,16 +9,18 @@ from threading import Thread
 import json
 import urllib.request
 import urllib.error
-import os
 
-# Android imports
+# Android imports (pyjnius se, python-for-android me yehi sahi tarika hai)
 try:
+    from jnius import autoclass
     from android import activity
     from android.permissions import request_permissions, Permission
-    from android.content import Intent
-    from android.speech import RecognizerIntent
+
+    Intent = autoclass("android.content.Intent")
+    RecognizerIntent = autoclass("android.speech.RecognizerIntent")
+    PythonActivity = autoclass("org.kivy.android.PythonActivity")
     ANDROID = True
-except ImportError:
+except Exception:
     ANDROID = False
 
 
@@ -26,11 +28,16 @@ except ImportError:
 # AIZEN CONFIG
 # ==============================
 
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+# Apne Cloudflare Worker ka poora URL yahan daalo
+WORKER_URL = "https://hidden-recipe-50cc.bhidugamer60.workers.dev"
+
+# Agar worker me APP_TOKEN secret set kiya hai to wahi yahan daalo, warna "" rehne do
+APP_TOKEN = ""
 
 MODEL = "openai/gpt-4o-mini"
 
-API_URL = "https://openrouter.ai/api/v1/chat/completions"
+VOICE_REQUEST_CODE = 1001
+RESULT_OK = -1
 
 
 # ==============================
@@ -54,31 +61,13 @@ class AizenApp(App):
             }
         ]
 
-        # ==============================
-        # REQUEST MIC PERMISSION
-        # ==============================
-
         if ANDROID:
             try:
-                request_permissions([
-                    Permission.RECORD_AUDIO
-                ])
+                request_permissions([Permission.RECORD_AUDIO])
             except Exception:
                 pass
 
-        # ==============================
-        # ROOT
-        # ==============================
-
-        root = BoxLayout(
-            orientation="vertical",
-            padding=12,
-            spacing=10
-        )
-
-        # ==============================
-        # TITLE
-        # ==============================
+        root = BoxLayout(orientation="vertical", padding=12, spacing=10)
 
         title = Label(
             text="[b]AIZEN AI[/b]",
@@ -87,12 +76,7 @@ class AizenApp(App):
             size_hint_y=None,
             height=60
         )
-
         root.add_widget(title)
-
-        # ==============================
-        # CHAT AREA
-        # ==============================
 
         self.chat = Label(
             text="Aizen AI Ready!\n\nHey bhai! Welcome back.",
@@ -101,31 +85,20 @@ class AizenApp(App):
             valign="top",
             size_hint_y=None
         )
-
         self.chat.bind(
             width=lambda instance, value: setattr(
-                instance,
-                "text_size",
-                (value, None)
+                instance, "text_size", (value, None)
             )
         )
-
         self.chat.bind(
             texture_size=lambda instance, value: setattr(
-                instance,
-                "height",
-                value[1] + 30
+                instance, "height", value[1] + 30
             )
         )
 
         self.scroll = ScrollView()
         self.scroll.add_widget(self.chat)
-
         root.add_widget(self.scroll)
-
-        # ==============================
-        # MESSAGE INPUT
-        # ==============================
 
         self.message = TextInput(
             hint_text="Message Aizen...",
@@ -133,16 +106,8 @@ class AizenApp(App):
             size_hint_y=None,
             height=55
         )
-
-        self.message.bind(
-            on_text_validate=self.send_message
-        )
-
+        self.message.bind(on_text_validate=self.send_message)
         root.add_widget(self.message)
-
-        # ==============================
-        # BUTTON ROW
-        # ==============================
 
         button_row = BoxLayout(
             orientation="horizontal",
@@ -151,41 +116,19 @@ class AizenApp(App):
             height=55
         )
 
-        # MIC BUTTON
-
-        self.mic_button = Button(
-            text="🎤 Mic",
-            size_hint_x=0.35
-        )
-
-        self.mic_button.bind(
-            on_press=self.start_voice_input
-        )
-
+        self.mic_button = Button(text="Mic", size_hint_x=0.35)
+        self.mic_button.bind(on_press=self.start_voice_input)
         button_row.add_widget(self.mic_button)
 
-        # SEND BUTTON
-
-        self.send_button = Button(
-            text="Send",
-            size_hint_x=0.65
-        )
-
-        self.send_button.bind(
-            on_press=self.send_message
-        )
-
+        self.send_button = Button(text="Send", size_hint_x=0.65)
+        self.send_button.bind(on_press=self.send_message)
         button_row.add_widget(self.send_button)
 
         root.add_widget(button_row)
 
-        # Android activity result callback
-
         if ANDROID:
             try:
-                activity.bind(
-                    on_activity_result=self.on_activity_result
-                )
+                activity.bind(on_activity_result=self.on_activity_result)
             except Exception:
                 pass
 
@@ -199,87 +142,53 @@ class AizenApp(App):
 
         if not ANDROID:
             self.chat.text += "\n\nAizen: Voice input Android APK me available hoga."
+            self.scroll_to_bottom()
             return
 
         try:
-            self.mic_button.text = "🎤 Listening..."
+            self.mic_button.text = "Listening..."
 
-            intent = Intent(
-                RecognizerIntent.ACTION_RECOGNIZE_SPEECH
-            )
-
+            intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
             intent.putExtra(
                 RecognizerIntent.EXTRA_LANGUAGE_MODEL,
                 RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
             )
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-IN")
+            intent.putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to Aizen")
 
-            intent.putExtra(
-                RecognizerIntent.EXTRA_LANGUAGE,
-                "en-IN"
-            )
-
-            intent.putExtra(
-                RecognizerIntent.EXTRA_PROMPT,
-                "Speak to Aizen"
-            )
-
-            activity.startActivityForResult(
-                intent,
-                1001
+            PythonActivity.mActivity.startActivityForResult(
+                intent, VOICE_REQUEST_CODE
             )
 
         except Exception as e:
-
-            self.mic_button.text = "🎤 Mic"
-
-            self.chat.text += (
-                "\n\nAizen: Mic start nahi ho paya.\n"
-                + str(e)
-            )
-
+            self.mic_button.text = "Mic"
+            self.chat.text += "\n\nAizen: Mic start nahi ho paya.\n" + str(e)
             self.scroll_to_bottom()
 
-    # ==============================
-    # VOICE RESULT
-    # ==============================
+    def on_activity_result(self, request_code, result_code, intent):
 
-    def on_activity_result(
-        self,
-        request_code,
-        result_code,
-        intent
-    ):
-
-        if request_code != 1001:
+        if request_code != VOICE_REQUEST_CODE:
             return
 
-        self.mic_button.text = "🎤 Mic"
+        self.mic_button.text = "Mic"
 
         try:
-
-            if intent is None:
+            if result_code != RESULT_OK or intent is None:
                 return
 
             results = intent.getStringArrayListExtra(
                 RecognizerIntent.EXTRA_RESULTS
             )
 
-            if results and len(results) > 0:
-
-                spoken_text = str(results[0])
-
+            if results is not None and results.size() > 0:
+                spoken_text = str(results.get(0))
                 self.message.text = spoken_text
-
-                # Automatically send voice message
                 self.send_message(None)
 
         except Exception as e:
-
             self.chat.text += (
-                "\n\nAizen: Voice result read nahi ho paya.\n"
-                + str(e)
+                "\n\nAizen: Voice result read nahi ho paya.\n" + str(e)
             )
-
             self.scroll_to_bottom()
 
     # ==============================
@@ -293,87 +202,55 @@ class AizenApp(App):
         if not message:
             return
 
+        # Ek saath do request na jaye
+        if self.send_button.disabled:
+            return
+
         self.message.text = ""
+        self.chat.text += f"\n\nYou: {message}"
 
-        self.chat.text += (
-            f"\n\nYou: {message}"
-        )
-
-        self.messages.append({
-            "role": "user",
-            "content": message
-        })
+        self.messages.append({"role": "user", "content": message})
 
         self.send_button.disabled = True
         self.mic_button.disabled = True
-
         self.send_button.text = "Aizen is thinking..."
 
-        Thread(
-            target=self.ask_aizen,
-            args=(message,),
-            daemon=True
-        ).start()
+        Thread(target=self.ask_aizen, daemon=True).start()
 
         self.scroll_to_bottom()
 
     # ==============================
-    # OPENROUTER REQUEST
+    # WORKER REQUEST
     # ==============================
 
-    def ask_aizen(self, message):
+    def ask_aizen(self):
 
         try:
-
-            if not OPENROUTER_API_KEY:
-
-                Clock.schedule_once(
-                    lambda dt: self.show_error(
-                        "OpenRouter API key is not configured."
-                    )
-                )
-
-                return
-
             data = {
                 "model": MODEL,
                 "messages": self.messages,
                 "temperature": 0.7
             }
 
+            headers = {"Content-Type": "application/json"}
+            if APP_TOKEN:
+                headers["X-App-Token"] = APP_TOKEN
+
             request = urllib.request.Request(
-                API_URL,
+                WORKER_URL,
                 data=json.dumps(data).encode("utf-8"),
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": (
-                        f"Bearer {OPENROUTER_API_KEY}"
-                    ),
-                    "HTTP-Referer": "https://github.com/",
-                    "X-Title": "Aizen AI"
-                },
+                headers=headers,
                 method="POST"
             )
 
-            with urllib.request.urlopen(
-                request,
-                timeout=60
-            ) as response:
-
-                result = json.loads(
-                    response.read().decode("utf-8")
-                )
+            with urllib.request.urlopen(request, timeout=60) as response:
+                result = json.loads(response.read().decode("utf-8"))
 
             reply = result["choices"][0]["message"]["content"]
 
-            self.messages.append({
-                "role": "assistant",
-                "content": reply
-            })
+            self.messages.append({"role": "assistant", "content": reply})
 
-            Clock.schedule_once(
-                lambda dt: self.show_reply(reply)
-            )
+            Clock.schedule_once(lambda dt: self.show_reply(reply))
 
         except urllib.error.HTTPError as e:
 
@@ -382,41 +259,59 @@ class AizenApp(App):
             except Exception:
                 error_body = ""
 
+            error_message = f"HTTP Error {e.code}\n{error_body}"
+            Clock.schedule_once(lambda dt: self.show_error(error_message))
+
+        except urllib.error.URLError as e:
+
             error_message = (
-                f"HTTP Error {e.code}\n"
-                f"{error_body}"
+                "Internet connection problem. "
+                f"Check your internet and try again.\n{e.reason}"
             )
-
-            Clock.schedule_once(
-                lambda dt: self.show_error(error_message)
-            )
-
-        except urllib.error.URLError:
-
-            Clock.schedule_once(
-                lambda dt: self.show_error(
-                    "Internet connection problem. "
-                    "Check your internet and try again."
-                )
-            )
+            Clock.schedule_once(lambda dt: self.show_error(error_message))
 
         except Exception as e:
 
-            Clock.schedule_once(
-                lambda dt: self.show_error(
-                    f"Something went wrong:\n{str(e)}"
-                )
-            )
+            error_message = f"Something went wrong:\n{str(e)}"
+            Clock.schedule_once(lambda dt: self.show_error(error_message))
 
     # ==============================
-    # SHOW AI REPLY
+    # SHOW REPLY / ERROR
     # ==============================
 
     def show_reply(self, reply):
 
-        self.chat.text += (
-            f"\n\nAizen: {reply}"
+        self.chat.text += f"\n\nAizen: {reply}"
+
+        self.send_button.disabled = False
+        self.mic_button.disabled = False
+        self.send_button.text = "Send"
+
+        self.scroll_to_bottom()
+
+    def show_error(self, error):
+
+        # Fail hui user message history se hata do, taaki next try saaf ho
+        if self.messages and self.messages[-1]["role"] == "user":
+            self.messages.pop()
+
+        self.chat.text += f"\n\nAizen: Sorry bhai, connection problem.\n{error}"
+
+        self.send_button.disabled = False
+        self.mic_button.disabled = False
+        self.send_button.text = "Send"
+
+        self.scroll_to_bottom()
+
+    def scroll_to_bottom(self):
+        Clock.schedule_once(
+            lambda dt: setattr(self.scroll, "scroll_y", 0), 0.1
         )
+
+
+if __name__ == "__main__":
+    AizenApp().run()
+  )
 
         self.send_button.disabled = False
         self.mic_button.disabled = False
