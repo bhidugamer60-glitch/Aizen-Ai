@@ -120,7 +120,8 @@ class AizenApp(App):
                 "You are Aizen, a friendly personal AI assistant. "
                 "Reply in Hinglish or English, matching the user's language. "
                 "Talk casually like a helpful best friend and use 'bhai' "
-                "naturally when appropriate. Be helpful, concise and clear."
+                "naturally when appropriate. Be helpful, concise and clear. "
+                "You can search the web for current information when needed."
             )
         }]
 
@@ -327,7 +328,8 @@ class AizenApp(App):
             data = {
                 "model": MODEL,
                 "messages": self.messages,
-                "temperature": 0.7
+                "temperature": 0.7,
+                "tools": [{"type": "openrouter:web_search"}]
             }
             headers = {
                 "Content-Type": "application/json",
@@ -394,4 +396,3 @@ class AizenApp(App):
 
 if __name__ == "__main__":
     AizenApp().run()
-    
