@@ -36,13 +36,18 @@ except Exception:
 # AIZEN CONFIG
 # ==============================
 
-# Apne Cloudflare Worker ka poora URL yahan daalo
 WORKER_URL = "https://hidden-recipe-50cc.bhidugamer60.workers.dev"
 
-# Agar worker me APP_TOKEN secret set kiya hai to wahi yahan daalo, warna "" rehne do
+# Worker me APP_TOKEN secret set kiya ho to wahi yahan daalo, warna "" rehne do
 APP_TOKEN = ""
 
 MODEL = "openai/gpt-4o-mini"
+
+# Cloudflare 1010 fix: normal browser jaisa User-Agent
+USER_AGENT = (
+    "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+)
 
 VOICE_REQUEST_CODE = 1001
 RESULT_OK = -1
@@ -254,7 +259,11 @@ class AizenApp(App):
                 "temperature": 0.7
             }
 
-            headers = {"Content-Type": "application/json"}
+            headers = {
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "User-Agent": USER_AGENT,
+            }
             if APP_TOKEN:
                 headers["X-App-Token"] = APP_TOKEN
 
