@@ -90,9 +90,16 @@ class AizenCore(Widget):
         ir = r * 0.22
         self.inner.pos = (cx - ir, cy - ir)
         self.inner.size = (ir * 2, ir * 2)
-        self.ring.circle = (cx, cy, r * 1.35, self.t * 45)
+        a = (self.t * 90) % 360
+        self.ring.circle = (cx, cy, r * 1.35, a, a + 270)
 
     def animate(self, dt):
+        try:
+            self._animate(dt)
+        except Exception:
+            pass
+
+    def _animate(self, dt):
         self.t += dt
         pulse = 1 + math.sin(self.t * 2.2) * 0.035
         cx, cy = self.center_x, self.center_y
@@ -108,11 +115,25 @@ class AizenCore(Widget):
         self.glow2.size = (r * 3.7, r * 3.7)
         self.glow3.pos = (cx - r * 2.3, cy - r * 2.3)
         self.glow3.size = (r * 4.6, r * 4.6)
-        self.ring.circle = (cx, cy, r * 1.35, self.t * 45)
+        a = (self.t * 90) % 360
+        self.ring.circle = (cx, cy, r * 1.35, a, a + 270)
 
 
 class AizenApp(App):
     def build(self):
+        try:
+            return self.build_ui()
+        except Exception:
+            import traceback
+            err = traceback.format_exc()
+            lbl = Label(
+                text="Aizen startup error:\n\n" + err,
+                font_size="11sp", halign="left", valign="top"
+            )
+            lbl.bind(size=lambda i, v: setattr(i, "text_size", (v[0] - dp(20), None)))
+            return lbl
+
+    def build_ui(self):
         self.title = "Aizen AI"
         self.messages = [{
             "role": "system",
@@ -191,7 +212,7 @@ class AizenApp(App):
         ))
 
         self.start_button = Button(
-            text="🎙   START CONVERSATION", font_size="15sp", bold=True,
+            text="START CONVERSATION", font_size="15sp", bold=True,
             color=WHITE, background_normal="", background_color=BLUE,
             size_hint_y=None, height=dp(58)
         )
@@ -202,7 +223,7 @@ class AizenApp(App):
             orientation="horizontal", spacing=dp(10),
             size_hint_y=None, height=dp(58)
         )
-        for label in ("🧠\nCORE", "✦\nEDITOR", "◇\nTOOLS", "∞\nMEMORY"):
+        for label in ("◆\nCORE", "✦\nEDITOR", "◇\nTOOLS", "∞\nMEMORY"):
             modules.add_widget(Button(
                 text=label, font_size="10sp", color=TEXT,
                 background_normal="", background_color=CARD,
@@ -224,7 +245,7 @@ class AizenApp(App):
         message_area.add_widget(self.message)
 
         self.mic_button = Button(
-            text="🎙", font_size="20sp", color=WHITE,
+            text="MIC", font_size="20sp", color=WHITE,
             background_normal="", background_color=BLUE_SOFT,
             size_hint_x=None, width=dp(52)
         )
@@ -279,8 +300,8 @@ class AizenApp(App):
             intent.putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to Aizen")
             PythonActivity.mActivity.startActivityForResult(intent, VOICE_REQUEST_CODE)
         except Exception as e:
-            self.mic_button.text = "🎙"
-            self.start_button.text = "🎙   START CONVERSATION"
+            self.mic_button.text = "MIC"
+            self.start_button.text = "START CONVERSATION"
             self.chat.text += "\n\nAizen: Mic start nahi ho paya.\n" + str(e)
             self.scroll_to_bottom()
 
@@ -299,8 +320,8 @@ class AizenApp(App):
         Clock.schedule_once(lambda dt: self.handle_voice_result(spoken_text, error))
 
     def handle_voice_result(self, spoken_text, error):
-        self.mic_button.text = "🎙"
-        self.start_button.text = "🎙   START CONVERSATION"
+        self.mic_button.text = "MIC"
+        self.start_button.text = "START CONVERSATION"
         if error:
             self.chat.text += "\n\nAizen: Voice result read nahi ho paya.\n" + error
             self.scroll_to_bottom()
@@ -396,3 +417,4 @@ class AizenApp(App):
 
 if __name__ == "__main__":
     AizenApp().run()
+    
