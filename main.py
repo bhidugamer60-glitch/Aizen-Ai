@@ -67,7 +67,7 @@ class AizenCore(Widget):
             Color(0.05, 0.08, 0.14, 1)
             self.core = Ellipse()
             Color(0.20, 0.60, 1.0, 0.9)
-            self.ring = Line(circle=(0, 0, 50, 0), width=1.4)
+            self.ring = Line(circle=(0, 0, 50, 0, 270), width=1.4)
             Color(0.55, 0.80, 1.0, 0.9)
             self.inner = Ellipse()
         self.bind(pos=self.update_graphics, size=self.update_graphics)
