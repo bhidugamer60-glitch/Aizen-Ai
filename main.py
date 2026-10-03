@@ -29,7 +29,7 @@ except Exception:
 # ==============================
 
 # Apne Cloudflare Worker ka poora URL yahan daalo
-WORKER_URL = "https://hidden-recipe-50cc.bhidugamer60.workers.dev"
+WORKER_URL = "https://hidden-recipe-50cc.YOUR-SUBDOMAIN.workers.dev"
 
 # Agar worker me APP_TOKEN secret set kiya hai to wahi yahan daalo, warna "" rehne do
 APP_TOKEN = ""
