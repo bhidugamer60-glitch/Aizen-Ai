@@ -9,6 +9,14 @@ from threading import Thread
 import json
 import urllib.request
 import urllib.error
+import ssl
+
+# Android par system certificates nahi milte, isliye certifi use karte hain
+try:
+    import certifi
+    SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
+except Exception:
+    SSL_CONTEXT = ssl.create_default_context()
 
 # Android imports (pyjnius se, python-for-android me yehi sahi tarika hai)
 try:
@@ -29,7 +37,7 @@ except Exception:
 # ==============================
 
 # Apne Cloudflare Worker ka poora URL yahan daalo
-WORKER_URL = "https://hidden-recipe-50cc.YOUR-SUBDOMAIN.workers.dev"
+WORKER_URL = "https://hidden-recipe-50cc.bhidugamer60.workers.dev"
 
 # Agar worker me APP_TOKEN secret set kiya hai to wahi yahan daalo, warna "" rehne do
 APP_TOKEN = ""
@@ -166,30 +174,44 @@ class AizenApp(App):
             self.scroll_to_bottom()
 
     def on_activity_result(self, request_code, result_code, intent):
+        # Ye function Android thread par chalta hai, Kivy thread par nahi.
+        # Isliye yahan UI ko haath mat lagao, sirf data nikalo.
 
         if request_code != VOICE_REQUEST_CODE:
             return
 
-        self.mic_button.text = "Mic"
+        spoken_text = None
+        error = None
 
         try:
-            if result_code != RESULT_OK or intent is None:
-                return
-
-            results = intent.getStringArrayListExtra(
-                RecognizerIntent.EXTRA_RESULTS
-            )
-
-            if results is not None and results.size() > 0:
-                spoken_text = str(results.get(0))
-                self.message.text = spoken_text
-                self.send_message(None)
-
+            if result_code == RESULT_OK and intent is not None:
+                results = intent.getStringArrayListExtra(
+                    RecognizerIntent.EXTRA_RESULTS
+                )
+                if results is not None and results.size() > 0:
+                    spoken_text = str(results.get(0))
         except Exception as e:
+            error = str(e)
+
+        # UI ka kaam Kivy ke main thread par bhejo
+        Clock.schedule_once(
+            lambda dt: self.handle_voice_result(spoken_text, error)
+        )
+
+    def handle_voice_result(self, spoken_text, error):
+
+        self.mic_button.text = "Mic"
+
+        if error:
             self.chat.text += (
-                "\n\nAizen: Voice result read nahi ho paya.\n" + str(e)
+                "\n\nAizen: Voice result read nahi ho paya.\n" + error
             )
             self.scroll_to_bottom()
+            return
+
+        if spoken_text:
+            self.message.text = spoken_text
+            self.send_message(None)
 
     # ==============================
     # SEND MESSAGE
@@ -243,7 +265,9 @@ class AizenApp(App):
                 method="POST"
             )
 
-            with urllib.request.urlopen(request, timeout=60) as response:
+            with urllib.request.urlopen(
+                request, timeout=60, context=SSL_CONTEXT
+            ) as response:
                 result = json.loads(response.read().decode("utf-8"))
 
             reply = result["choices"][0]["message"]["content"]
