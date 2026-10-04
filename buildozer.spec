@@ -9,8 +9,7 @@ source.include_exts = py,png,jpg,jpeg,kv,atlas
 
 version = 1.0.0
 
-# Pinned versions (latest p4a master builds Python 3.14 which breaks)
-requirements = python3==3.11.5,hostpython3==3.11.5,kivy==2.3.0
+requirements = python3==3.11.5,hostpython3==3.11.5,kivy==2.3.0,pyjnius,android,certifi
 
 orientation = portrait
 fullscreen = 0
@@ -30,7 +29,6 @@ source.exclude_dirs = .git,.github,bin,build,.buildozer
 
 android.debug_artifact = apk
 
-# Stable python-for-android release instead of master
 p4a.branch = v2024.01.21
 
 
