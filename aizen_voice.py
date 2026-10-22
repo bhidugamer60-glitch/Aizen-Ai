@@ -25,6 +25,7 @@ class VoiceMixin(CallMixin):
         self._recognizer = None
         self._recognition_listener = None
         self._speech_poll = None
+        self._speak_token = 0
 
     @run_on_ui_thread
     def _setup_android_voice(self, *args):
@@ -76,8 +77,10 @@ class VoiceMixin(CallMixin):
             return
 
         try:
-            Intent = autoclass("android.content.Intent")
+            PythonActivity = autoclass("org.kivy.android.PythonActivity")
+            activity = PythonActivity.mActivity
 
+            Intent = autoclass("android.content.Intent")
             RecognizerIntent = autoclass("android.speech.RecognizerIntent")
 
             intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
@@ -88,14 +91,14 @@ class VoiceMixin(CallMixin):
             )
 
             # Indian English works better for Hinglish input.
-            intent.putExtra(
-                RecognizerIntent.EXTRA_LANGUAGE,
-                "en-IN",
-            )
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-IN")
 
+            intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+
+            # Some phones need the calling package to be set.
             intent.putExtra(
-                RecognizerIntent.EXTRA_MAX_RESULTS,
-                1,
+                RecognizerIntent.EXTRA_CALLING_PACKAGE,
+                activity.getPackageName(),
             )
 
             self._recognizer.startListening(intent)
@@ -119,44 +122,54 @@ class VoiceMixin(CallMixin):
 
     def _speak(self, text):
         """
-        Play AI response using the secure ElevenLabs
-        Cloudflare Worker.
-
-        ElevenLabs API key and Voice ID stay on Cloudflare.
-        They are NOT stored inside the APK.
+        Play the AI response using the secure ElevenLabs
+        Cloudflare Worker. After speaking, the call goes back to
+        listening. If ElevenLabs fails or never answers, the call
+        still continues instead of hanging.
         """
 
         if not text or not str(text).strip():
             return False
 
+        text = str(text)[:3500]
+
+        # One token per speech, so late/duplicate callbacks are ignored.
+        self._speak_token += 1
+        token = self._speak_token
+
+        def finished(*args):
+            # May be called from a background thread.
+            Clock.schedule_once(lambda dt: self._after_speech(token), 0)
+
+        # Safety net: if the audio callback never comes, continue anyway.
+        watchdog_seconds = max(20, len(text) * 0.09 + 15)
+        Clock.schedule_once(lambda dt: self._after_speech(token), watchdog_seconds)
+
         try:
-            self._voice_state("speaking")
+            Clock.schedule_once(lambda dt: self._voice_state("speaking"), 0)
 
-            def finished():
-                if not self.call_active:
-                    self._voice_state("idle")
-                    return
-
-                self._voice_state("idle")
-
-                Clock.schedule_once(
-                    lambda dt: self._begin_listening(),
-                    0.4
-                )
-
-            elevenlabs_speak(
-                str(text)[:3500],
-                on_done=finished
-            )
+            elevenlabs_speak(text, on_done=finished)
 
             return True
 
         except Exception as e:
             print("ELEVENLABS SPEAK ERROR:", e)
 
-            self._voice_state("idle")
+            finished()
 
             return False
+
+    def _after_speech(self, token):
+        # Ignore if this speech was already finished or replaced.
+        if token != self._speak_token:
+            return
+
+        self._speak_token += 1
+
+        self._voice_state("idle")
+
+        if self.call_active:
+            Clock.schedule_once(lambda dt: self._begin_listening(), 0.4)
 
     def _start_poll(self, dt):
         # Kept for compatibility with the existing system.
@@ -184,4 +197,4 @@ class VoiceMixin(CallMixin):
 
         self._voice_state("listening")
         self._listen()
-    
+            
